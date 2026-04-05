@@ -9,22 +9,20 @@ namespace MarketDataAggregator.Infrastructure.Sources
     {
         private readonly string[] _symbols;
 
-        public BinanceWebSocketSource(INormalizer normalizer, string[] symbols)
-            : base(normalizer)
+        public BinanceWebSocketSource(INormalizer normalizer, string webSocketUrl, string[] symbols)
+            : base(normalizer, BuildWebSocketUrl(webSocketUrl, symbols))
         {
             _symbols = symbols.Length > 0 ? symbols : new[] { "btcusdt" };
         }
 
+        private static string BuildWebSocketUrl(string baseUrl, string[] symbols)
+        {
+            var streams = string.Join("/", symbols.Select(s => $"{s.ToLower()}@trade"));
+            return $"{baseUrl}{streams}";
+        }
+
         protected override string SourceName => "Binance";
 
-        protected override string WebSocketUrl
-        {
-            get
-            {
-                var streams = string.Join("/", _symbols.Select(s => $"{s.ToLower()}@trade"));
-                return $"wss://stream.binance.com:9443/ws/{streams}";
-            }
-        }
 
         protected override Task OnConnectedAsync(ClientWebSocket ws, CancellationToken ct)
         {

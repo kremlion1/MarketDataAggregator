@@ -8,14 +8,15 @@ namespace MarketDataAggregator.Infrastructure.Sources
 {
     public abstract class WebSocketDataSourceBase : IMarketDataSource
     {
-        protected readonly INormalizer Normalizer;
+        private readonly INormalizer _normalizer;
+        private readonly string _webSocketUrl;
 
-        protected WebSocketDataSourceBase(INormalizer normalizer)
+        protected WebSocketDataSourceBase(INormalizer normalizer, string webSocketUrl)
         {
-            Normalizer = normalizer;
+            _normalizer = normalizer;
+            _webSocketUrl = webSocketUrl;
         }
 
-        protected abstract string WebSocketUrl { get; }
         protected abstract Task OnConnectedAsync(ClientWebSocket ws, CancellationToken ct);
         protected abstract string SourceName { get; }
         protected abstract bool ShouldProcessMessage(IRawTick rawTick);
@@ -25,11 +26,11 @@ namespace MarketDataAggregator.Infrastructure.Sources
         {
             try
             {
-                Console.WriteLine($"Connecting to {SourceName}: {WebSocketUrl}");
+                Console.WriteLine($"Connecting to {SourceName}: {_webSocketUrl}");
 
                 using (var ws = new ClientWebSocket())
                 {
-                    await ws.ConnectAsync(new Uri(WebSocketUrl), ct);
+                    await ws.ConnectAsync(new Uri(_webSocketUrl), ct);
                     Console.WriteLine($"{SourceName} WebSocket connected");
 
                     await OnConnectedAsync(ws, ct);
@@ -78,7 +79,7 @@ namespace MarketDataAggregator.Infrastructure.Sources
                 
                 if (rawData is IRawTick rawTick && ShouldProcessMessage(rawTick))
                 {
-                    var tick = Normalizer.Normalize(rawData, SourceName);
+                    var tick = _normalizer.Normalize(rawData, SourceName);
                     writer.WriteAsync(tick, ct).GetAwaiter().GetResult();
                 }
             }

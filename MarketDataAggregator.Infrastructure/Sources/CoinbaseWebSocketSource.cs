@@ -9,14 +9,13 @@ namespace MarketDataAggregator.Infrastructure.Sources
     {
         private readonly string[] _products;
 
-        public CoinbaseWebSocketSource(INormalizer normalizer, string[] products)
-            : base(normalizer)
+        public CoinbaseWebSocketSource(INormalizer normalizer, string webSocketUrl, string[] products)
+            : base(normalizer, webSocketUrl)
         {
             _products = products.Length > 0 ? products : new[] { "BTC-USD" };
         }
 
         protected override string SourceName => "Coinbase";
-        protected override string WebSocketUrl => "wss://ws-feed.exchange.coinbase.com";
 
         protected override async Task OnConnectedAsync(ClientWebSocket ws, CancellationToken ct)
         {

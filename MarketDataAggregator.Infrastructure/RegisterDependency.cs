@@ -45,11 +45,13 @@ namespace MarketDataAggregator.Infrastructure
                 IMarketDataSource dataSource = source.Type?.ToLower() switch
                 {
                     "binance" => new BinanceWebSocketSource(
-                        binanceNormalizer, 
+                        binanceNormalizer,
+                        source.WebSocketUrl ?? "wss://stream.binance.com:9443/ws/",
                         source.Symbols ?? new[] { "btcusdt" }),
                     
                     "coinbase" => new CoinbaseWebSocketSource(
-                        coinbaseNormalizer, 
+                        coinbaseNormalizer,
+                        source.WebSocketUrl ?? "wss://ws-feed.exchange.coinbase.com",
                         source.Products ?? new[] { "BTC-USD" }),
                     
                     _ => throw new InvalidOperationException($"Unknown source type: {source.Type}")
@@ -67,7 +69,7 @@ namespace MarketDataAggregator.Infrastructure
     {
         public string Name { get; set; } = string.Empty;
         public string Type { get; set; } = string.Empty;
-        public int TickDelayMs { get; set; } = 50;
+        public string WebSocketUrl { get; set; } = string.Empty;
         public string[]? Symbols { get; set; }
         public string[]? Products { get; set; }
     }
