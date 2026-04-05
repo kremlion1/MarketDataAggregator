@@ -1,4 +1,4 @@
-﻿﻿using MarketDataAggregator.Application.Interfaces;
+﻿using MarketDataAggregator.Application.Interfaces;
 using MarketDataAggregator.Application.Pipeline;
 using MarketDataAggregator.Infrastructure.Context;
 using MarketDataAggregator.Infrastructure.Deduplication;

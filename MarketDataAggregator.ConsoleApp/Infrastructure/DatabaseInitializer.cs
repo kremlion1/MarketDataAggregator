@@ -1,4 +1,5 @@
 using MarketDataAggregator.Infrastructure.Context;
+using Serilog;
 
 namespace MarketDataAggregator.ConsoleApp.Infrastructure
 {
@@ -16,11 +17,11 @@ namespace MarketDataAggregator.ConsoleApp.Infrastructure
             try
             {
                 await _dbContext.Database.EnsureCreatedAsync();
-                Console.WriteLine("Database initialized successfully");
+                Log.Information("Database initialized successfully");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error initializing database: {ex.Message}");
+                Log.Fatal(ex, "Error initializing database");
                 throw;
             }
         }

@@ -3,6 +3,7 @@ using System.Threading.Channels;
 using MarketDataAggregator.Application.Interfaces;
 using MarketDataAggregator.Domain.Models;
 using MarketDataAggregator.Infrastructure.Sources.RawData;
+using Serilog;
 
 namespace MarketDataAggregator.Infrastructure.Sources
 {
@@ -26,12 +27,12 @@ namespace MarketDataAggregator.Infrastructure.Sources
         {
             try
             {
-                Console.WriteLine($"Connecting to {SourceName}: {_webSocketUrl}");
+                Log.Information("Connecting to {SourceName}: {WebSocketUrl}", SourceName, _webSocketUrl);
 
                 using (var ws = new ClientWebSocket())
                 {
                     await ws.ConnectAsync(new Uri(_webSocketUrl), ct);
-                    Console.WriteLine($"{SourceName} WebSocket connected");
+                    Log.Information("{SourceName} WebSocket connected", SourceName);
 
                     await OnConnectedAsync(ws, ct);
 
@@ -51,7 +52,7 @@ namespace MarketDataAggregator.Infrastructure.Sources
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"{SourceName} receive error: {ex.Message}");
+                            Log.Warning(ex, "{SourceName} receive error", SourceName);
                         }
                     }
 
@@ -63,11 +64,11 @@ namespace MarketDataAggregator.Infrastructure.Sources
             }
             catch (OperationCanceledException)
             {
-                Console.WriteLine($"{SourceName} source stopped");
+                Log.Information("{SourceName} source stopped", SourceName);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"{SourceName} source error: {ex.Message}");
+                Log.Error(ex, "{SourceName} source error", SourceName);
             }
         }
 
@@ -85,7 +86,7 @@ namespace MarketDataAggregator.Infrastructure.Sources
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"{SourceName} deserialization error: {ex.Message}");
+                Log.Warning(ex, "{SourceName} deserialization error", SourceName);
             }
         }
     }
