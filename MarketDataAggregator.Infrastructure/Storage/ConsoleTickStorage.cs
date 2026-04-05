@@ -16,5 +16,16 @@ namespace MarketDataAggregator.Infrastructure.Storage
 
             return Task.CompletedTask;
         }
+
+        public Task SaveBatchAsync(IEnumerable<MarketTick> ticks, CancellationToken ct)
+        {
+            foreach (var tick in ticks)
+            {
+                _count++;
+                Console.WriteLine(
+                    $"{_count}: {tick.Source} {tick.Ticker} {tick.Price} {tick.Timestamp:HH:mm:ss.fff}");
+            }
+            return Task.CompletedTask;
+        }
     }
 }

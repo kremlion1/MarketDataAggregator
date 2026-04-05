@@ -1,7 +1,8 @@
-﻿using MarketDataAggregator.Application.Pipeline;
-using MarketDataAggregator.Infrastructure.Normalization;
-using MarketDataAggregator.Infrastructure.Sources;
-using MarketDataAggregator.Infrastructure.Storage;
+﻿using MarketDataAggregator.ConsoleApp.Configuration;
+using MarketDataAggregator.ConsoleApp.Infrastructure;
+using MarketDataAggregator.ConsoleApp.Services;
+using MarketDataAggregator.Infrastructure.Context;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace MarketDataAggregator.ConsoleApp
 {
@@ -9,37 +10,36 @@ namespace MarketDataAggregator.ConsoleApp
     {
         public static async Task Main(string[] args)
         {
-            var cts = new CancellationTokenSource();
-
-            Console.CancelKeyPress += (_, e) =>
+            try
             {
-                e.Cancel = true;
-                cts.Cancel();
-            };
+                var config = ConfigurationBuilder.Build();
 
-            var normalizer = new SimpleNormalizer();
-            var storage = new ConsoleTickStorage();
-            var pipeline = new PipelineProcessor(normalizer, storage);
+                var services = ServiceConfiguration.ConfigureServices(config);
+                var provider = services.BuildServiceProvider();
 
-            var sources = new List<MockWebSocketSource>
-            {
-                new("Binance"),
-                new("Coinbase")
-            };
+                using (var scope = provider.CreateScope())
+                {
+                    var dbContext = scope.ServiceProvider.GetRequiredService<MarketDataDbContext>();
+                    var initializer = new DatabaseInitializer(dbContext);
+                    await initializer.InitializeAsync();
+                }
 
-            var tasks = new List<Task>
-            {
-                Task.Run(() => pipeline.StartAsync(cts.Token))
-            };
+                var cts = new CancellationTokenSource();
+                var shutdownHandler = new ShutdownHandler(cts);
+                shutdownHandler.RegisterShutdownHandler();
 
-            foreach (var source in sources)
-            {
-                tasks.Add(Task.Run(() => source.StartAsync(pipeline.Writer, cts.Token)));
+                var runner = new ApplicationRunner(provider);
+                await runner.RunAsync(cts.Token);
             }
-
-            Console.WriteLine("Started...");
-
-            await Task.WhenAll(tasks);
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("Application stopped");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Application error: {ex.Message}");
+                Environment.Exit(1);
+            }
         }
     }
 }

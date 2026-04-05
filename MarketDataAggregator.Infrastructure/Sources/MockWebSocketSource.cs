@@ -7,11 +7,13 @@ namespace MarketDataAggregator.Infrastructure.Sources
     public class MockWebSocketSource: IMarketDataSource
     {
         private readonly string _sourceName;
+        private readonly int _tickDelayMs;
         private readonly Random _random = new();
 
-        public MockWebSocketSource(string sourceName)
+        public MockWebSocketSource(string sourceName, int tickDelayMs = 50)
         {
             _sourceName = sourceName;
+            _tickDelayMs = tickDelayMs;
         }
 
         public async Task StartAsync(ChannelWriter<MarketTick> writer, CancellationToken ct)
@@ -28,7 +30,7 @@ namespace MarketDataAggregator.Infrastructure.Sources
                 };
 
                 await writer.WriteAsync(tick, ct);
-                await Task.Delay(50, ct); // ~20 тиков/сек
+                await Task.Delay(_tickDelayMs, ct);
             }
         }
     }
