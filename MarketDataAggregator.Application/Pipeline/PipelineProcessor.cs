@@ -17,7 +17,7 @@ namespace MarketDataAggregator.Application.Pipeline
                 FullMode = BoundedChannelFullMode.DropNewest 
             });
 
-        private const int BatchSize = 100;
+        private const int BatchSize = 10;
 
         public ChannelWriter<MarketTick> Writer => _channel.Writer;
 
@@ -40,14 +40,18 @@ namespace MarketDataAggregator.Application.Pipeline
             statsTimer.Elapsed += (s, e) => _metrics.PrintMetrics();
             statsTimer.Start();
 
+            Console.WriteLine("Pipeline started");
+
             try
             {
                 await foreach (var tick in _channel.Reader.ReadAllAsync(ct))
                 {
                     batch.Add(tick);
+                    Console.WriteLine($"Received tick: {tick.Ticker} from {tick.Source} at {tick.Timestamp:HH:mm:ss.fff}");
 
                     if (batch.Count >= BatchSize)
                     {
+                        Console.WriteLine($"Processing batch of {batch.Count} ticks");
                         await ProcessBatchAsync(batch, ct);
                         batch.Clear();
                     }
@@ -55,6 +59,7 @@ namespace MarketDataAggregator.Application.Pipeline
 
                 if (batch.Count > 0)
                 {
+                    Console.WriteLine($"Processing final batch of {batch.Count} ticks");
                     await ProcessBatchAsync(batch, ct);
                 }
             }
@@ -70,24 +75,42 @@ namespace MarketDataAggregator.Application.Pipeline
         {
             try
             {
-                var uniqueTicks = await _deduplicationService.FilterDuplicatesAsync(batch, ct);
+                Console.WriteLine($"Starting deduplication for batch of {batch.Count} ticks");
+                
+                var dedupedInMemory = batch
+                    .GroupBy(x => new { x.Ticker, x.Timestamp, x.Source })
+                    .Select(g => g.First())
+                    .ToList();
+                
+                Console.WriteLine($"In-memory dedup: {batch.Count} -> {dedupedInMemory.Count} ticks");
+                
+                var uniqueTicks = await _deduplicationService.FilterDuplicatesAsync(dedupedInMemory, ct);
                 var uniqueList = uniqueTicks.ToList();
+                Console.WriteLine($"Deduplication completed, {uniqueList.Count} unique ticks remain");
 
                 var duplicateCount = batch.Count - uniqueList.Count;
                 if (duplicateCount > 0)
                 {
+                    Console.WriteLine($"Removed {duplicateCount} duplicates, saving {uniqueList.Count} ticks");
                     _metrics.IncrementDuplicatesRemoved(duplicateCount);
                 }
 
                 if (uniqueList.Any())
                 {
+                    Console.WriteLine($"Saving {uniqueList.Count} ticks to database");
                     await _storage.SaveBatchAsync(uniqueList, ct);
+                    Console.WriteLine($"Successfully saved {uniqueList.Count} ticks");
                     _metrics.IncrementTicksProcessed(uniqueList.Count);
+                }
+                else
+                {
+                    Console.WriteLine("No unique ticks to save");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"✗ Error processing batch: {ex.Message}");
+                Console.WriteLine($"Error processing batch: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 _metrics.IncrementSaveErrors();
             }
         }

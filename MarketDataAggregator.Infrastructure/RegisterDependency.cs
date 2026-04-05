@@ -1,4 +1,4 @@
-﻿using MarketDataAggregator.Application.Interfaces;
+﻿﻿using MarketDataAggregator.Application.Interfaces;
 using MarketDataAggregator.Application.Pipeline;
 using MarketDataAggregator.Infrastructure.Context;
 using MarketDataAggregator.Infrastructure.Deduplication;
@@ -29,16 +29,34 @@ namespace MarketDataAggregator.Infrastructure
                 }));
 
             services.AddSingleton<INormalizer, SimpleNormalizer>();
-            services.AddScoped<ITickStorage, TickStorage>();
-            services.AddScoped<IDeduplicationService, DeduplicationService>();
+            services.AddSingleton<ITickStorage, TickStorage>();
+            services.AddSingleton<IDeduplicationService, DeduplicationService>();
             services.AddSingleton<IMetricsService, MetricsService>();
             services.AddSingleton<PipelineProcessor>();
 
+            var binanceNormalizer = new BinanceNormalizer();
+            var coinbaseNormalizer = new CoinbaseNormalizer();
+
             var sources = config.GetSection("MarketDataSources")
                 .Get<MarketDataSourceConfig[]>() ?? Array.Empty<MarketDataSourceConfig>();
+            
             foreach (var source in sources)
             {
-                services.AddSingleton<IMarketDataSource>(new MockWebSocketSource(source.Name, source.TickDelayMs));
+                IMarketDataSource dataSource = source.Type?.ToLower() switch
+                {
+                    "binance" => new BinanceWebSocketSource(
+                        binanceNormalizer, 
+                        source.Symbols ?? new[] { "btcusdt" }),
+                    
+                    "coinbase" => new CoinbaseWebSocketSource(
+                        coinbaseNormalizer, 
+                        source.Products ?? new[] { "BTC-USD" }),
+                    
+                    _ => throw new InvalidOperationException($"Unknown source type: {source.Type}")
+                };
+
+                services.AddSingleton(dataSource);
+                services.AddSingleton<IMarketDataSource>(dataSource);
             }
             
             return services;
@@ -48,7 +66,10 @@ namespace MarketDataAggregator.Infrastructure
     public class MarketDataSourceConfig
     {
         public string Name { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
         public int TickDelayMs { get; set; } = 50;
+        public string[]? Symbols { get; set; }
+        public string[]? Products { get; set; }
     }
 }
 

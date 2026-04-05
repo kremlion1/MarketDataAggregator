@@ -3,6 +3,7 @@ using MarketDataAggregator.ConsoleApp.Infrastructure;
 using MarketDataAggregator.ConsoleApp.Services;
 using MarketDataAggregator.Infrastructure.Context;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net;
 
 namespace MarketDataAggregator.ConsoleApp
 {
@@ -10,6 +11,8 @@ namespace MarketDataAggregator.ConsoleApp
     {
         public static async Task Main(string[] args)
         {
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls13;
+
             try
             {
                 var config = ConfigurationBuilder.Build();
