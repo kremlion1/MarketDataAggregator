@@ -74,8 +74,6 @@ namespace MarketDataAggregator.Application.Pipeline
         {
             try
             {
-                Log.Information("Processing batch of {BatchSize} ticks", batch.Count);
-
                 var dedupedInMemory = batch
                     .GroupBy(x => new { x.Ticker, x.Timestamp, x.Source })
                     .Select(g => g.First())
@@ -83,37 +81,47 @@ namespace MarketDataAggregator.Application.Pipeline
                 
                 if (batch.Count > dedupedInMemory.Count)
                 {
+                    var duplicateCount = batch.Count - dedupedInMemory.Count;
                     Log.Information("In-memory dedup: {Original} -> {Unique} ticks",
                         batch.Count, dedupedInMemory.Count);
-                }
-                
-                var uniqueTicks = await _deduplicationService.FilterDuplicatesAsync(dedupedInMemory, ct);
-                var uniqueList = uniqueTicks.ToList();
-                Log.Information("Database dedup completed, {UniqueCount} unique ticks remain", uniqueList.Count);
-
-                var duplicateCount = batch.Count - uniqueList.Count;
-                if (duplicateCount > 0)
-                {
-                    Log.Information("Removed {DuplicateCount} duplicates, saving {UniqueCount} ticks",
-                        duplicateCount, uniqueList.Count);
                     _metrics.IncrementDuplicatesRemoved(duplicateCount);
                 }
 
-                if (uniqueList.Any())
+                IEnumerable<MarketTick> uniqueTicks;
+                try
                 {
-                    Log.Information("Saving {TickCount} ticks to database", uniqueList.Count);
-                    await _storage.SaveBatchAsync(uniqueList, ct);
-                    Log.Information("Successfully saved {TickCount} ticks", uniqueList.Count);
-                    _metrics.IncrementTicksProcessed(uniqueList.Count);
+                    uniqueTicks = await _deduplicationService.FilterDuplicatesAsync(dedupedInMemory, ct);
                 }
-                else
+                catch (Exception ex)
                 {
-                    Log.Information("No unique ticks to save");
+                    Log.Error(ex, "Deduplication service error, skipping batch");
+                    _metrics.IncrementSaveErrors();
+                    return;
+                }
+
+                var uniqueList = uniqueTicks.ToList();
+                if (uniqueList.Count > 0)
+                {
+                    try
+                    {
+                        await _storage.SaveBatchAsync(uniqueList, ct);
+                        Log.Information("Successfully saved {TickCount} ticks", uniqueList.Count);
+                        _metrics.IncrementTicksProcessed(uniqueList.Count);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        Log.Warning("Batch save operation cancelled for {TickCount} ticks", uniqueList.Count);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Failed to save batch of {TickCount} ticks", uniqueList.Count);
+                        _metrics.IncrementSaveErrors();
+                    }
                 }
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error processing batch");
+                Log.Error(ex, "Unexpected error in ProcessBatchAsync");
                 _metrics.IncrementSaveErrors();
             }
         }
