@@ -1,4 +1,4 @@
-﻿using MarketDataAggregator.Application.Interfaces;
+using MarketDataAggregator.Application.Interfaces;
 using MarketDataAggregator.Domain.Models;
 using System.Threading.Channels;
 using Serilog;
@@ -33,40 +33,28 @@ namespace MarketDataAggregator.Application.Pipeline
 
         public async Task StartAsync(CancellationToken ct)
         {
-            var batch = new List<MarketTick>(BatchSize);
-            var statsTimer = new System.Timers.Timer(5000);
-            statsTimer.Elapsed += (s, e) => _metrics.PrintMetrics();
-            statsTimer.Start();
-
-            Log.Information("Pipeline started");
-
-            try
+            using (var metricsReporter = new MetricsReporter(_metrics))
             {
-                await foreach (var tick in _channel.Reader.ReadAllAsync(ct))
-                {
-                    batch.Add(tick);
-                    Log.Debug("Received tick: {Ticker} from {Source} at {Timestamp}",
-                        tick.Ticker, tick.Source, tick.Timestamp.ToString("HH:mm:ss.fff"));
+                metricsReporter.Start();
+                Log.Information("Pipeline started");
 
-                    if (batch.Count >= BatchSize)
+                var batchManager = new BatchManager(BatchSize, ProcessBatchAsync);
+
+                try
+                {
+                    await foreach (var tick in _channel.Reader.ReadAllAsync(ct))
                     {
-                        Log.Information("Processing batch of {BatchSize} ticks", batch.Count);
-                        await ProcessBatchAsync(batch, ct);
-                        batch.Clear();
+                        batchManager.Add(tick);
+                        await batchManager.ProcessIfReadyAsync(ct);
                     }
-                }
 
-                if (batch.Count > 0)
-                {
-                    Log.Information("Processing final batch of {BatchSize} ticks", batch.Count);
-                    await ProcessBatchAsync(batch, ct);
+                    await batchManager.ProcessRemainingAsync(ct);
                 }
-            }
-            finally
-            {
-                statsTimer.Stop();
-                statsTimer.Dispose();
-                _metrics.PrintMetrics();
+                finally
+                {
+                    metricsReporter.Stop();
+                    _metrics.PrintMetrics();
+                }
             }
         }
 
@@ -110,7 +98,7 @@ namespace MarketDataAggregator.Application.Pipeline
                     }
                     catch (OperationCanceledException)
                     {
-                        Log.Warning("Batch save operation cancelled for {TickCount} ticks", uniqueList.Count);
+                        Log.Warning("Batch save operation cancelled");
                     }
                     catch (Exception ex)
                     {

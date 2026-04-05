@@ -7,17 +7,17 @@ namespace MarketDataAggregator.ConsoleApp.Services
     public class ApplicationRunner
     {
         private readonly PipelineProcessor _pipeline;
-        private readonly IEnumerable<IMarketDataSource> _sources;
+        private readonly List<IMarketDataSource> _sources;
 
         public ApplicationRunner(IServiceProvider provider)
         {
             _pipeline = provider.GetRequiredService<PipelineProcessor>();
-            _sources = provider.GetServices<IMarketDataSource>();
+            _sources = provider.GetServices<IMarketDataSource>().ToList();
         }
 
         public async Task RunAsync(CancellationToken ct)
         {
-            Console.WriteLine($"\nStarted {_sources.Count()} data sources\n");
+            Console.WriteLine($"\nStarted {_sources.Count} data sources\n");
 
             var tasks = new List<Task>
             {

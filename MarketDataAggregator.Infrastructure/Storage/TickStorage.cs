@@ -1,4 +1,4 @@
-﻿﻿using MarketDataAggregator.Application.Interfaces;
+﻿using MarketDataAggregator.Application.Interfaces;
 using MarketDataAggregator.Domain.Models;
 using MarketDataAggregator.Infrastructure.Context;
 using Microsoft.EntityFrameworkCore;
@@ -31,8 +31,6 @@ namespace MarketDataAggregator.Infrastructure.Storage
 
         public async Task SaveBatchAsync(IEnumerable<MarketTick> ticks, CancellationToken ct)
         {
-            if (ticks is ICollection<MarketTick> tickCollection && tickCollection.Count == 0)
-                return;
 
             var tickList = ticks.ToList();
             if (tickList.Count == 0)
